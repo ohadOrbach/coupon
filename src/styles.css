@@ -312,6 +312,31 @@ a {
   color: var(--text-secondary);
 }
 
+/* Total value bar */
+.total-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 12px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.total-bar span {
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.total-bar strong {
+  font-size: 20px;
+  font-weight: 800;
+}
+
 /* Banner */
 .banner {
   display: flex;

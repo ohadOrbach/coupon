@@ -55,6 +55,11 @@ export function ListPage() {
 
   const soonCount = coupons.filter((c) => isSoon(c, now)).length;
 
+  // Total ₪ value of the coupons currently shown (ILS amounts only).
+  const totalIls = coupons
+    .filter((c) => c.currency === 'ILS' && typeof c.amount === 'number' && !Number.isNaN(c.amount))
+    .reduce((sum, c) => sum + (c.amount as number), 0);
+
   async function handleExport() {
     const json = await exportData();
     const blob = new Blob([json], { type: 'application/json' });
@@ -142,6 +147,13 @@ export function ListPage() {
                 {src}
               </button>
             ))}
+          </div>
+        )}
+
+        {totalIls > 0 && (
+          <div className="total-bar">
+            <span>ערך כולל</span>
+            <strong>₪{totalIls.toLocaleString('he-IL')}</strong>
           </div>
         )}
 
