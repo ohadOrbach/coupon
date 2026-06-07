@@ -10,7 +10,15 @@ import {
   type CouponFilters,
 } from '@/db/coupons';
 import { formatAmount, formatExpiry } from '@/lib/format';
+import { rankForTotal } from '@/lib/rank';
 import type { Coupon, CouponStatus } from '@/lib/types';
+
+// Sum of ILS amounts across the given coupons.
+function sumIls(coupons: Coupon[]): number {
+  return coupons
+    .filter((c) => c.currency === 'ILS' && typeof c.amount === 'number' && !Number.isNaN(c.amount))
+    .reduce((sum, c) => sum + (c.amount as number), 0);
+}
 
 const STATUS_OPTIONS: { value: CouponStatus | 'all'; label: string }[] = [
   { value: 'active', label: 'בתוקף' },
@@ -37,6 +45,10 @@ export function ListPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<CouponStatus | 'all'>('active');
   const [sourceFilter, setSourceFilter] = useState<string | null>(null);
+  // Total ₪ of active coupons + how many — drives the savings rank (a stable
+  // status, independent of the current filters).
+  const [activeTotalIls, setActiveTotalIls] = useState(0);
+  const [activeCount, setActiveCount] = useState(0);
   const [now] = useState(() => new Date());
 
   const reload = useCallback(async () => {
@@ -44,9 +56,15 @@ export function ListPage() {
     if (search.trim()) filters.search = search.trim();
     if (statusFilter !== 'all') filters.status = statusFilter;
     if (sourceFilter) filters.source = sourceFilter;
-    const [list, srcs] = await Promise.all([listCoupons(filters), listSources()]);
+    const [list, srcs, activeList] = await Promise.all([
+      listCoupons(filters),
+      listSources(),
+      listCoupons({ status: 'active' }),
+    ]);
     setCoupons(list);
     setSources(srcs);
+    setActiveTotalIls(sumIls(activeList));
+    setActiveCount(activeList.length);
   }, [search, statusFilter, sourceFilter]);
 
   useEffect(() => {
@@ -54,11 +72,7 @@ export function ListPage() {
   }, [reload]);
 
   const soonCount = coupons.filter((c) => isSoon(c, now)).length;
-
-  // Total ₪ value of the coupons currently shown (ILS amounts only).
-  const totalIls = coupons
-    .filter((c) => c.currency === 'ILS' && typeof c.amount === 'number' && !Number.isNaN(c.amount))
-    .reduce((sum, c) => sum + (c.amount as number), 0);
+  const rank = rankForTotal(activeTotalIls);
 
   async function handleExport() {
     const json = await exportData();
@@ -150,10 +164,13 @@ export function ListPage() {
           </div>
         )}
 
-        {totalIls > 0 && (
-          <div className="total-bar">
-            <span>ערך כולל</span>
-            <strong>₪{totalIls.toLocaleString('he-IL')}</strong>
+        {activeCount > 0 && (
+          <div className="rank-card">
+            <img src={`${import.meta.env.BASE_URL}${rank.image}`} alt={rank.name} />
+            <div className="rank-caption">
+              <span className="rank-name">{rank.name}</span>
+              <span className="rank-total">₪{activeTotalIls.toLocaleString('he-IL')}</span>
+            </div>
           </div>
         )}
 

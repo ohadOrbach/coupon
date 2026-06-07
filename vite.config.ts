@@ -37,8 +37,8 @@ export default defineConfig({
         ],
       },
       workbox: {
-        // Cache the app shell so it works offline after the first visit.
-        globPatterns: ['**/*.{js,css,html,png,svg,ico,woff2}'],
+        // Cache the app shell + level images so it works offline after first visit.
+        globPatterns: ['**/*.{js,css,html,png,jpg,jpeg,svg,ico,woff2}'],
       },
     }),
   ],
