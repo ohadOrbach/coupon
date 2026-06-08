@@ -1,7 +1,16 @@
 import { useRef, useState } from 'react';
 
 import { formatExpiry } from '@/lib/format';
-import { DEFAULT_CURRENCY, KNOWN_STORES, type CouponDraft } from '@/lib/types';
+import {
+  CATEGORY_OPTIONS,
+  DEFAULT_CURRENCY,
+  KIND_OPTIONS,
+  KNOWN_STORES,
+  couponImages,
+  type CouponCategory,
+  type CouponDraft,
+  type CouponKind,
+} from '@/lib/types';
 
 const CURRENCY_OPTIONS = [
   { value: 'ILS', label: '₪ ש״ח' },
@@ -15,20 +24,19 @@ function pad(n: number): string {
   return n.toString().padStart(2, '0');
 }
 
-// Stored ISO (UTC) -> value for <input type="datetime-local"> (local time).
-function isoToLocalInput(iso: string | null | undefined): string {
+// Stored ISO -> value for <input type="date"> (local date, no time).
+function isoToDateInput(iso: string | null | undefined): string {
   if (!iso) return '';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(
-    d.getMinutes(),
-  )}`;
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-// datetime-local value (local time) -> stored ISO.
-function localInputToIso(value: string): string | null {
+// date value (YYYY-MM-DD) -> stored ISO at the END of that local day, so a
+// coupon "valid until the 10th" stays valid through the whole of the 10th.
+function dateInputToIso(value: string): string | null {
   if (!value) return null;
-  const d = new Date(value);
+  const d = new Date(`${value}T23:59:59`);
   if (Number.isNaN(d.getTime())) return null;
   return d.toISOString();
 }
@@ -116,6 +124,8 @@ export function CouponForm({
 
   const [name, setName] = useState(initial?.name ?? '');
   const [code, setCode] = useState(initial?.code ?? '');
+  const [kind, setKind] = useState<CouponKind | undefined>(initial?.kind);
+  const [category, setCategory] = useState<CouponCategory | undefined>(initial?.category);
   const [storeChoice, setStoreChoice] = useState(
     initialSource ? (initialKnown ? initialSource : OTHER_STORE) : '',
   );
@@ -127,7 +137,7 @@ export function CouponForm({
   const [expiryDate, setExpiryDate] = useState<string | null>(initial?.expiryDate ?? null);
   const [notes, setNotes] = useState(initial?.notes ?? '');
   const [link, setLink] = useState(initial?.link ?? '');
-  const [imageUri, setImageUri] = useState<string | undefined>(initial?.imageUri);
+  const [images, setImages] = useState<string[]>(initial ? couponImages(initial) : []);
   const [imageBusy, setImageBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -135,17 +145,22 @@ export function CouponForm({
   const source = storeChoice === OTHER_STORE ? otherStore.trim() : storeChoice;
 
   async function handleImage(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
+    const files = Array.from(e.target.files ?? []);
     e.target.value = '';
-    if (!file) return;
+    if (!files.length) return;
     setImageBusy(true);
     try {
-      setImageUri(await fileToDownscaledDataUrl(file));
+      const added = await Promise.all(files.map((f) => fileToDownscaledDataUrl(f)));
+      setImages((prev) => [...prev, ...added]);
     } catch {
       setError('לא ניתן לטעון את התמונה.');
     } finally {
       setImageBusy(false);
     }
+  }
+
+  function removeImage(index: number) {
+    setImages((prev) => prev.filter((_, i) => i !== index));
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -166,6 +181,8 @@ export function CouponForm({
     onSubmit({
       name: name.trim(),
       code: code.trim(),
+      kind,
+      category,
       source,
       amount: validAmount,
       // Amounts are always a plain prepaid/coupon value in this app.
@@ -174,7 +191,8 @@ export function CouponForm({
       expiryDate,
       notes: notes.trim() || undefined,
       link: normalizeUrl(link),
-      imageUri,
+      imageUris: images,
+      imageUri: undefined, // migrate off the legacy single-image field
     });
   }
 
@@ -188,6 +206,27 @@ export function CouponForm({
           onChange={(e) => setName(e.target.value)}
           placeholder="לדוגמה: 50₪ הנחה בסופר"
         />
+      </div>
+
+      <div className="field">
+        <label>סוג</label>
+        <Segmented options={KIND_OPTIONS} value={kind} onChange={setKind} />
+      </div>
+
+      <div className="field">
+        <label>קטגוריה</label>
+        <div className="chips" style={{ flexWrap: 'wrap', overflow: 'visible' }}>
+          {CATEGORY_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              className={`chip ${category === opt.value ? 'active' : ''}`}
+              onClick={() => setCategory((cur) => (cur === opt.value ? undefined : opt.value))}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="field">
@@ -270,9 +309,9 @@ export function CouponForm({
         <label htmlFor="expiry">תוקף</label>
         <input
           id="expiry"
-          type="datetime-local"
-          value={isoToLocalInput(expiryDate)}
-          onChange={(e) => setExpiryDate(localInputToIso(e.target.value))}
+          type="date"
+          value={isoToDateInput(expiryDate)}
+          onChange={(e) => setExpiryDate(dateInputToIso(e.target.value))}
         />
         {expiryDate && (
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
@@ -295,28 +334,37 @@ export function CouponForm({
       </div>
 
       <div className="field">
-        <label>תמונה</label>
-        {imageUri ? (
-          <div className="image-preview">
-            <img src={imageUri} alt="תמונת הקופון" />
-            <button type="button" className="link-btn" onClick={() => setImageUri(undefined)}>
-              הסר תמונה
-            </button>
+        <label>תמונות</label>
+        {images.length > 0 && (
+          <div className="image-grid">
+            {images.map((src, i) => (
+              <div key={i} className="image-thumb">
+                <img src={src} alt={`תמונה ${i + 1}`} />
+                <button
+                  type="button"
+                  className="image-remove"
+                  aria-label="הסר תמונה"
+                  onClick={() => removeImage(i)}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
           </div>
-        ) : (
-          <button
-            type="button"
-            className="btn btn-secondary"
-            disabled={imageBusy}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            {imageBusy ? 'טוען…' : 'הוספת תמונה'}
-          </button>
         )}
+        <button
+          type="button"
+          className="btn btn-secondary"
+          disabled={imageBusy}
+          onClick={() => fileInputRef.current?.click()}
+        >
+          {imageBusy ? 'טוען…' : images.length ? 'הוספת תמונה נוספת' : 'הוספת תמונה'}
+        </button>
         <input
           ref={fileInputRef}
           type="file"
           accept="image/*"
+          multiple
           style={{ display: 'none' }}
           onChange={handleImage}
         />

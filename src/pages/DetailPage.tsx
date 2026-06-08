@@ -5,7 +5,7 @@ import { CheckoutCode } from '@/components/CheckoutCode';
 import { StatusBadge } from '@/components/StatusBadge';
 import { deleteCoupon, getCoupon, markUsed } from '@/db/coupons';
 import { formatAmount, formatExpiry } from '@/lib/format';
-import type { Coupon } from '@/lib/types';
+import { CATEGORY_LABELS, KIND_LABELS, couponImages, type Coupon } from '@/lib/types';
 
 export function DetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -48,6 +48,7 @@ export function DetailPage() {
   }
 
   const amount = formatAmount(coupon.amount, coupon.amountType, coupon.currency);
+  const images = couponImages(coupon);
 
   async function handleMarkUsed() {
     await markUsed(coupon!.id);
@@ -71,14 +72,16 @@ export function DetailPage() {
 
         <CheckoutCode code={coupon.code} />
 
-        {coupon.imageUri && (
-          <a href={coupon.imageUri} target="_blank" rel="noreferrer" className="coupon-image">
-            <img src={coupon.imageUri} alt="תמונת הקופון" />
+        {images.map((src, i) => (
+          <a key={i} href={src} target="_blank" rel="noreferrer" className="coupon-image">
+            <img src={src} alt={`תמונה ${i + 1}`} />
           </a>
-        )}
+        ))}
 
         <div className="details">
           <DetailRow label="חנות" value={coupon.source} />
+          {coupon.kind && <DetailRow label="סוג" value={KIND_LABELS[coupon.kind]} />}
+          {coupon.category && <DetailRow label="קטגוריה" value={CATEGORY_LABELS[coupon.category]} />}
           {amount && <DetailRow label="סכום" value={amount} />}
           <DetailRow label="תוקף" value={formatExpiry(coupon.expiryDate, now)} />
           {coupon.notes && <DetailRow label="הערות" value={coupon.notes} />}

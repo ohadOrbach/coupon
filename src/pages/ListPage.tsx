@@ -11,7 +11,14 @@ import {
 } from '@/db/coupons';
 import { formatAmount, formatExpiry } from '@/lib/format';
 import { rankForTotal } from '@/lib/rank';
-import type { Coupon, CouponStatus } from '@/lib/types';
+import {
+  CATEGORY_OPTIONS,
+  KIND_OPTIONS,
+  type Coupon,
+  type CouponCategory,
+  type CouponKind,
+  type CouponStatus,
+} from '@/lib/types';
 
 // Sum of ILS amounts across the given coupons.
 function sumIls(coupons: Coupon[]): number {
@@ -45,6 +52,8 @@ export function ListPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<CouponStatus | 'all'>('active');
   const [sourceFilter, setSourceFilter] = useState<string | null>(null);
+  const [categoryFilter, setCategoryFilter] = useState<CouponCategory | null>(null);
+  const [kindFilter, setKindFilter] = useState<CouponKind | null>(null);
   // Total ₪ of active coupons + how many — drives the savings rank (a stable
   // status, independent of the current filters).
   const [activeTotalIls, setActiveTotalIls] = useState(0);
@@ -56,6 +65,8 @@ export function ListPage() {
     if (search.trim()) filters.search = search.trim();
     if (statusFilter !== 'all') filters.status = statusFilter;
     if (sourceFilter) filters.source = sourceFilter;
+    if (categoryFilter) filters.category = categoryFilter;
+    if (kindFilter) filters.kind = kindFilter;
     const [list, srcs, activeList] = await Promise.all([
       listCoupons(filters),
       listSources(),
@@ -65,7 +76,7 @@ export function ListPage() {
     setSources(srcs);
     setActiveTotalIls(sumIls(activeList));
     setActiveCount(activeList.length);
-  }, [search, statusFilter, sourceFilter]);
+  }, [search, statusFilter, sourceFilter, categoryFilter, kindFilter]);
 
   useEffect(() => {
     reload();
@@ -140,6 +151,46 @@ export function ListPage() {
               </button>
             ))}
           </div>
+        </div>
+
+        <div className="chips">
+          <button
+            type="button"
+            className={`chip ${kindFilter === null ? 'active' : ''}`}
+            onClick={() => setKindFilter(null)}
+          >
+            הכול
+          </button>
+          {KIND_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              className={`chip ${kindFilter === opt.value ? 'active' : ''}`}
+              onClick={() => setKindFilter((cur) => (cur === opt.value ? null : opt.value))}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="chips">
+          <button
+            type="button"
+            className={`chip ${categoryFilter === null ? 'active' : ''}`}
+            onClick={() => setCategoryFilter(null)}
+          >
+            כל הקטגוריות
+          </button>
+          {CATEGORY_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              className={`chip ${categoryFilter === opt.value ? 'active' : ''}`}
+              onClick={() => setCategoryFilter((cur) => (cur === opt.value ? null : opt.value))}
+            >
+              {opt.label}
+            </button>
+          ))}
         </div>
 
         {sources.length > 0 && (

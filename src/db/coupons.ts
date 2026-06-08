@@ -1,11 +1,13 @@
 import { computeStatus } from '@/lib/status';
-import type { Coupon, CouponDraft, CouponStatus } from '@/lib/types';
+import type { Coupon, CouponCategory, CouponDraft, CouponKind, CouponStatus } from '@/lib/types';
 import { getAllStored, getStored, putStored, removeStored } from './storage';
 
 export type CouponFilters = {
   search?: string;
   source?: string;
   status?: CouponStatus;
+  category?: CouponCategory;
+  kind?: CouponKind;
 };
 
 function now(): string {
@@ -42,6 +44,8 @@ export async function listCoupons(filters: CouponFilters = {}): Promise<Coupon[]
   const filtered = refreshed.filter((c) => {
     if (filters.source && c.source !== filters.source) return false;
     if (filters.status && c.status !== filters.status) return false;
+    if (filters.category && c.category !== filters.category) return false;
+    if (filters.kind && c.kind !== filters.kind) return false;
     if (search) {
       const haystack = `${c.name} ${c.source} ${c.notes ?? ''} ${c.code}`.toLowerCase();
       if (!haystack.includes(search)) return false;
