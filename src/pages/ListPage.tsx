@@ -10,6 +10,7 @@ import {
   type CouponFilters,
 } from '@/db/coupons';
 import { formatAmount, formatExpiry } from '@/lib/format';
+import { toIls } from '@/lib/currency';
 import { rankForTotal } from '@/lib/rank';
 import {
   CATEGORY_OPTIONS,
@@ -20,11 +21,12 @@ import {
   type CouponStatus,
 } from '@/lib/types';
 
-// Sum of ILS amounts across the given coupons.
-function sumIls(coupons: Coupon[]): number {
-  return coupons
-    .filter((c) => c.currency === 'ILS' && typeof c.amount === 'number' && !Number.isNaN(c.amount))
-    .reduce((sum, c) => sum + (c.amount as number), 0);
+// Total value of the given coupons in ILS, converting other currencies.
+function totalInIls(coupons: Coupon[]): number {
+  const sum = coupons
+    .filter((c) => typeof c.amount === 'number' && !Number.isNaN(c.amount))
+    .reduce((acc, c) => acc + toIls(c.amount as number, c.currency), 0);
+  return Math.round(sum);
 }
 
 const STATUS_OPTIONS: { value: CouponStatus | 'all'; label: string }[] = [
@@ -74,7 +76,7 @@ export function ListPage() {
     ]);
     setCoupons(list);
     setSources(srcs);
-    setActiveTotalIls(sumIls(activeList));
+    setActiveTotalIls(totalInIls(activeList));
     setActiveCount(activeList.length);
   }, [search, statusFilter, sourceFilter, categoryFilter, kindFilter]);
 
